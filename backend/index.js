@@ -1,18 +1,24 @@
-require('dotenv').config();
+if (process.env.NODE_ENV !== 'production') {
+  require('dotenv').config();
+}
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const path = require('path');
 const { init } = require('./db');
+const seed = require('./scripts/seed');
 const { apiLimiter } = require('./middleware/rateLimiter');
 const authRouter = require('./routes/shared/auth');
 const reportsRouter = require('./routes/shared/reports');
 const adminRouter = require('./routes/admin');
 const teknisiRouter = require('./routes/teknisi');
+
+const pelaporRouter = require('./routes/pelapor');
 const sessionConfig = require('./sessionConfig');
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET;
 const NODE_ENV = process.env.NODE_ENV || 'development';
@@ -86,9 +92,11 @@ app.get('/api/health', (req, res) => {
 // Routers
 app.use('/api', authRouter);        // /login, /me
 app.use('/api', reportsRouter);     // /reports (shared)
+app.use('/api/pelapor', pelaporRouter); // /pelapor/laporan
 
-// Serve uploaded images
-app.use('/uploads', express.static(path.join(__dirname, 'data', 'uploads')));
+// Removed: uploads folder no longer needed (using Cloudinary)
+// app.use('/uploads', express.static(path.join(__dirname, 'data', 'uploads')));
+
 app.use('/api/admin', adminRouter);   // /admin/users, /admin/dashboard
 app.use('/api/teknisi', teknisiRouter); // /teknisi/reports
 
@@ -100,9 +108,13 @@ app.use((err, req, res, next) => {
 });
 
 init().then(() => {
+    // Auto-seed database dengan dummy accounts
+    return seed();
+  }).then(() => {
   app.listen(PORT, () => {
     console.log(`Server listening on http://localhost:${PORT}`);
   });
 }).catch(err => {
+    console.error('Startup error:', err);
   process.exit(1);
 });
