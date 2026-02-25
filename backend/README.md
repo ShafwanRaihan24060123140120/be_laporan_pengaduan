@@ -1,153 +1,103 @@
-# Telkom Asset Management - Backend Server
+# Backend Sistem Laporan Pengaduan
+
+Sistem backend untuk aplikasi pelaporan dan manajemen aset Telkom. Dibangun dengan Node.js, Express, dan PostgreSQL.
+
+---
 
 ## Quick Start
 
-### 1. Install Dependencies
-```bash
-npm install
-```
+1. **Install dependencies**
+   ```bash
+   npm install
+   ```
+2. **Siapkan file .env** 
+3. **Jalankan server**
+   ```bash
+   npm start
+   ```
+4. **Seed database**
+   ```bash
+   node scripts/seed.js
+   ```
 
-### 2. Environment Setup
-File `.env` sudah ada dengan konfigurasi development. Untuk production, copy `.env.example` dan sesuaikan.
+---
 
-### 3. Run Server
-```bash
-npm start
-```
+## Fitur Utama
+- Autentikasi JWT (Admin, Teknisi, Pelapor)
+- Role-based access control
+- CRUD laporan aset
+- Rate limiting & security headers
+- Input validation & sanitasi
+- Upload gambar (Cloudinary)
+- Logging & error handling
 
-Server akan jalan di `http://localhost:4000`
+---
 
-## API Endpoints
+## Struktur Database (PostgreSQL)
 
-### Public Endpoints
-- `GET /api/health` - Health check
-- `POST /api/login` - Login (rate limited: 5 attempts per 15 min)
+- **admins**: id, username, password_hash, password_changed_at
+- **teknisi**: id, username, password_hash, password_changed_at
+- **pelapor**: id, username, password_hash, unit, password_changed_at
+- **reports**: id, email_pelapor, nama_barang, tanggal, unit, deskripsi, image_url, image_url2, image_url3, created_at, status
 
-### Protected Endpoints (Requires JWT Token)
-- `GET /api/me` - Get current user info
-- `GET /api/reports` - List all reports
-- `GET /api/reports/:id` - Get single report
-- `PUT /api/reports/:id/status` - Update report status (Admin/Teknisi)
-- `DELETE /api/reports/:id` - Delete report (Admin/Teknisi)
-- `GET /api/dashboard/summary` - Dashboard statistics
+---
 
-## Security Features
+## Environment Variables (.env)
 
-✅ JWT Authentication with expiry
-✅ Role-based access control (Admin, Teknisi)
-✅ Rate limiting (100 req/15min general, 5 attempts/15min login)
-✅ CORS protection (whitelist domains)
-✅ Input validation & sanitization
-✅ Helmet security headers
-✅ Request logging (Morgan)
-✅ Bcrypt password hashing (12 rounds)
+- `DATABASE_URL` — URL koneksi PostgreSQL
+- `JWT_SECRET` — Secret JWT minimal 32 karakter
+- `ALLOWED_ORIGINS` — Daftar origin frontend yang diizinkan
+- `CLOUDINARY_URL` — untuk upload gambar
 
-## Testing
+---
 
-### Test Login
-```bash
-curl -X POST http://localhost:4000/api/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"YOUR_USERNAME","password":"YOUR_PASSWORD"}'
-```
+## Keamanan
+- Semua password di-hash (bcrypt)
+- Rate limiting login & API
+- CORS whitelist
+- Helmet security headers
+- Input validation (express-validator)
 
-### Test Protected Route
-```bash
-# Get token from login first, then:
-curl -X GET http://localhost:4000/api/reports \
-  -H "Authorization: Bearer YOUR_TOKEN_HERE"
-```
-
-### Test Rate Limiting
-```bash
-# Try login 6 times with wrong password:
-for i in {1..6}; do 
-  curl -X POST http://localhost:4000/api/login \
-    -H "Content-Type: application/json" \
-    -d '{"username":"admin","password":"wrong"}'; 
-  echo ""
-done
-# Should get blocked after 5th attempt
-```
-
-## Database
-
-SQLite database: `data/app.db`
-
-Tables:
-- `admins` - Admin users
-- `teknisi` - Teknisi users  
-- `reports` - Asset reports
-
-⚠️ **Note:** SQLite sudah cukup untuk development. Untuk production dengan concurrent access tinggi, pertimbangkan PostgreSQL/MySQL.
-
-## Troubleshooting
-
-### Port 4000 sudah dipakai
-Edit `.env`:
-```
-PORT=5000
-```
-
-### CORS Error
-Pastikan frontend origin ada di `.env`:
-```
-ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
-```
-
-### JWT_SECRET too short
-Minimal 32 karakter. Generate baru:
-```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-```
-
-### Database locked
-Stop semua instance server yang running:
-```bash
-# Windows
-taskkill /f /im node.exe
-
-# Linux/Mac
-killall node
-```
-
-## Production Deployment
-
-Lihat [SECURITY.md](./SECURITY.md) untuk checklist lengkap.
-
-**Minimal requirements:**
-1. Generate JWT_SECRET random
-2. Set NODE_ENV=production
-3. Update ALLOWED_ORIGINS dengan domain production
-4. Setup HTTPS/SSL
-5. Ganti default passwords
-6. Setup database backup
-7. Configure firewall
+---
 
 ## Development Scripts
 
 ```bash
-npm start       # Start server
-npm run dev     # Start with nodemon (auto-reload)
+npm start             # Start server
+npm run dev           # Nodemon auto-reload
+node scripts/seed.js  # Seed akun dummy
 ```
 
-## Dependencies
+---
 
-**Production:**
-- express - Web framework
-- cors - CORS middleware
-- helmet - Security headers
-- bcryptjs - Password hashing
-- jsonwebtoken - JWT authentication
-- express-validator - Input validation
-- express-rate-limit - Rate limiting
-- dotenv - Environment variables
-- morgan - HTTP logging
-- sqlite3 - Database
+## Testing
+- Gunakan Postman/cURL untuk test endpoint
+- Akun dummy bisa dibuat dengan `node scripts/seed.js`
 
-**Development:**
-- nodemon - Auto-reload server
+---
 
-## Support
+## Folder & File
+- **index.js**: Entry point aplikasi backend (server Express).
+- **db.js**: Koneksi & helper database (backend).
+- **routes/**: Semua endpoint API (backend).
+- **middleware/**: Middleware auth, rate limiter, dll (backend).
+- **scripts/seed.js**: Script seeding data dummy (backend).
+- **config/**: Konfigurasi cloudinary, dsb (backend).
 
-Untuk issues atau questions, contact tim development.
+---
+
+## Login untuk Testing
+
+**Admin:**
+- Username: `admin`
+- Password: `admin123`
+
+**Teknisi:**
+- Username: `teknisi`
+- Password: `TeknisiBaru2026!`
+
+**Pelapor:**
+- Username: `pelapor_bs`, Password: `PelaporBS2026!`, Unit: BS (Business Service)
+- Username: `pelapor_lgs`, Password: `PelaporLGS2026!`, Unit: LGS (Local Government Service)
+- Username: `pelapor_prq`, Password: `PelaporPRQ2026!`, Unit: PRQ (Performance, Risk & Quality)
+- Username: `pelapor_ssgs`, Password: `PelaporSSGS2026!`, Unit: SSGS (Shared Service General Support)
