@@ -16,7 +16,7 @@ const pelaporLimiter = rateLimit({
 // Import Cloudinary upload
 const { upload } = require('../../config/cloudinary');
 
-const { openDb } = require('../../db');
+const { query } = require('../../db');
 
 // Mapping unit/lokasi ke kode singkat
 const unitCodeMap = {
@@ -28,23 +28,13 @@ const unitCodeMap = {
 
 // Fungsi untuk generate ID berdasarkan unit dengan nomor urut
 async function generateReportId(unit) {
-  const db = openDb();
-  const code = unitCodeMap[unit] || 'LR'; // Default LR jika unit tidak dikenali
-  
-  // Ambil nomor urut terbesar agar tidak bentrok saat ada data yang terhapus
-  const result = await new Promise((resolve, reject) => {
-    const startIndex = code.length + 2; // 1-based index setelah "CODE-"
-    db.get(
-      'SELECT MAX(CAST(SUBSTR(id, ?) AS INTEGER)) as maxNum FROM reports WHERE id LIKE ?',
-      [startIndex, `${code}-%`],
-      (err, row) => {
-        if (err) return reject(err);
-        resolve(row ? row.maxNum : 0);
-      }
-    );
-  });
-  
-  const nextNumber = (Number(result) || 0) + 1;
+  const code = unitCodeMap[unit] || 'LR';
+  // Ambil nomor urut terbesar dari id yang sudah ada
+  const sql = `SELECT MAX(CAST(SUBSTRING(id, $1) AS INTEGER)) as maxNum FROM reports WHERE id LIKE $2`;
+  const startIndex = code.length + 2;
+  const result = await query(sql, [startIndex, `${code}-%`]);
+  const maxNum = result.rows[0]?.maxnum || 0;
+  const nextNumber = (Number(maxNum) || 0) + 1;
   const paddedNumber = String(nextNumber).padStart(3, '0');
   return `${code}-${paddedNumber}`;
 }
@@ -52,31 +42,19 @@ async function generateReportId(unit) {
 // POST /api/pelapor/laporan - tambah laporan ke DB (max 3 foto)
 router.post('/laporan', authenticateToken, requirePelapor, pelaporLimiter, upload.array('foto', 3), async (req, res) => {
   const { nama, tanggal, aset, deskripsi } = req.body;
-  // Ambil unit dari token JWT, bukan dari form
   const unit = req.user.unit;
-  
   const files = req.files || [];
-  // Cloudinary returns file.path as secure URL
   const fotoUrls = files.map(f => f.path);
-  // Pastikan minimal 1 foto, maksimal 3
   if (!nama || !tanggal || !aset || !deskripsi || fotoUrls.length === 0) {
     return res.status(400).json({ error: 'Semua field wajib diisi dan minimal 1 foto' });
   }
-  // Siapkan 3 kolom image_url, image_url2, image_url3
   const [foto1, foto2, foto3] = [fotoUrls[0] || null, fotoUrls[1] || null, fotoUrls[2] || null];
-  const db = openDb();
   try {
     const id = await generateReportId(unit);
-    await new Promise((resolve, reject) => {
-      db.run(
-        'INSERT INTO reports (id, email_pelapor, nama_barang, tanggal, unit, deskripsi, image_url, image_url2, image_url3, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [id, nama, aset, tanggal, unit, deskripsi, foto1, foto2, foto3, 'Pending'],
-        function (err) {
-          if (err) return reject(err);
-          resolve();
-        }
-      );
-    });
+    await query(
+      'INSERT INTO reports (id, email_pelapor, nama_barang, tanggal, unit, deskripsi, image_url, image_url2, image_url3, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)',
+      [id, nama, aset, tanggal, unit, deskripsi, foto1, foto2, foto3, 'Pending']
+    );
     res.json({ success: true, laporan: { id, nama, unit, tanggal, aset, deskripsi, foto: fotoUrls, status: 'Pending' } });
   } catch (e) {
     res.status(500).json({ error: 'Gagal menyimpan laporan' });
@@ -85,12 +63,10 @@ router.post('/laporan', authenticateToken, requirePelapor, pelaporLimiter, uploa
 
 // GET /api/pelapor/laporan - list laporan dari DB (hanya laporan dari unit sendiri)
 router.get('/laporan', authenticateToken, requirePelapor, async (req, res) => {
-  const unit = req.user.unit; // Ambil unit dari token
-  const db = openDb();
-  db.all('SELECT * FROM reports WHERE unit = ? ORDER BY created_at ASC, id ASC', [unit], (err, rows) => {
-    if (err) return res.status(500).json({ error: 'Gagal mengambil data laporan' });
-    // Map agar frontend tetap dapat field yang diharapkan
-    const mapped = rows.map(r => ({
+  const unit = req.user.unit;
+  try {
+    const result = await query('SELECT * FROM reports WHERE unit = $1 ORDER BY created_at ASC, id ASC', [unit]);
+    const mapped = result.rows.map(r => ({
       id: r.id,
       nama: r.email_pelapor,
       unit: r.unit,
@@ -106,7 +82,9 @@ router.get('/laporan', authenticateToken, requirePelapor, async (req, res) => {
       status: r.status || 'Pending'
     }));
     res.json(mapped);
-  });
+  } catch (e) {
+    res.status(500).json({ error: 'Gagal mengambil data laporan' });
+  }
 });
 
 module.exports = router;

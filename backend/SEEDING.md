@@ -33,8 +33,8 @@ node scripts/seed.js
 Untuk reset seluruh database dan seed ulang:
 
 ```bash
-# Hapus database
-rm data/app.sqlite
+# Reset database PostgreSQL
+Pastikan DATABASE_URL sudah benar dan PostgreSQL server aktif.
 
 # Inisialisasi struktur tabel
 node -e "require('./db').init()"
@@ -45,10 +45,4 @@ node scripts/seed.js
 
 ### File SQL (Opsional)
 
-Alternatif, gunakan file SQL langsung (untuk sqlite3 CLI):
-
-```bash
-sqlite3 data/app.sqlite < data/seed.sql
-```
-
-**Note:** File `seed.sql` berisi hash password yang sudah di-generate. Lebih disarankan menggunakan `node seed.js` untuk generate hash fresh.
+Tidak diperlukan untuk PostgreSQL. Gunakan script seeding di atas.

@@ -1,9 +1,7 @@
-// Konfigurasi session
+// Konfigurasi session (pakai memory store untuk sementara)
 const session = require('express-session');
-const SQLiteStore = require('connect-sqlite3')(session);
 
 module.exports = session({
-  store: new SQLiteStore({ db: 'sessions.sqlite', dir: './data' }),
   secret: process.env.SESSION_SECRET || 'supersecretkeyyangpanjangbanget',
   resave: false,
   saveUninitialized: false,

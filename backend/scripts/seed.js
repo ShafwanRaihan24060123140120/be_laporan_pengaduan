@@ -1,38 +1,22 @@
-const sqlite3 = require('sqlite3').verbose();
-const bcrypt = require('bcryptjs');
-const path = require('path');
 
-const DB_PATH = path.join(__dirname, '..', 'data', 'app.sqlite');
+const { Pool } = require('pg');
+const bcrypt = require('bcryptjs');
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
 
 async function seed() {
-  const db = new sqlite3.Database(DB_PATH);
-
-  const run = (sql, params = []) => {
-    return new Promise((resolve, reject) => {
-      db.run(sql, params, function (err) {
-        if (err) return reject(err);
-        resolve(this);
-      });
-    });
-  };
-
-  const get = (sql, params = []) => {
-    return new Promise((resolve, reject) => {
-      db.get(sql, params, (err, row) => {
-        if (err) return reject(err);
-        resolve(row);
-      });
-    });
-  };
 
   try {
     console.log('[INFO] Seeding database with dummy accounts...\n');
 
     // Admin
-    const adminExists = await get('SELECT 1 FROM admins WHERE username = ?', ['admin']);
+    const adminExists = await get('SELECT 1 FROM admins WHERE username = $1', ['admin']);
     if (!adminExists) {
       const hash = bcrypt.hashSync('admin123', 12);
-      await run('INSERT INTO admins (username, password_hash, password_changed_at) VALUES (?, ?, ?)', 
+      await run('INSERT INTO admins (username, password_hash, password_changed_at) VALUES ($1, $2, $3)', 
         ['admin', hash, 0]);
       console.log('[SUCCESS] Admin created: username=admin, password=admin123');
     } else {
@@ -40,10 +24,10 @@ async function seed() {
     }
 
     // Teknisi
-    const teknisiExists = await get('SELECT 1 FROM teknisi WHERE username = ?', ['teknisi']);
+    const teknisiExists = await get('SELECT 1 FROM teknisi WHERE username = $1', ['teknisi']);
     if (!teknisiExists) {
       const hash = bcrypt.hashSync('TeknisiBaru2026!', 12);
-      await run('INSERT INTO teknisi (username, password_hash, password_changed_at) VALUES (?, ?, ?)', 
+      await run('INSERT INTO teknisi (username, password_hash, password_changed_at) VALUES ($1, $2, $3)', 
         ['teknisi', hash, 0]);
       console.log('[SUCCESS] Teknisi created: username=teknisi, password=TeknisiBaru2026!');
     } else {
@@ -59,10 +43,10 @@ async function seed() {
     ];
 
     for (const p of pelapors) {
-      const exists = await get('SELECT 1 FROM pelapor WHERE username = ?', [p.username]);
+      const exists = await get('SELECT 1 FROM pelapor WHERE username = $1', [p.username]);
       if (!exists) {
         const hash = bcrypt.hashSync(p.password, 12);
-        await run('INSERT INTO pelapor (username, password_hash, unit, password_changed_at) VALUES (?, ?, ?, ?)', 
+        await run('INSERT INTO pelapor (username, password_hash, unit, password_changed_at) VALUES ($1, $2, $3, $4)', 
           [p.username, hash, p.unit, 0]);
         console.log(`[SUCCESS] Pelapor created: username=${p.username}, password=${p.password}, unit=${p.unit}`);
       } else {
@@ -74,8 +58,17 @@ async function seed() {
   } catch (error) {
     console.error('[ERROR] Seeding error:', error);
   } finally {
-    db.close();
+    await pool.end();
   }
+// Helper functions for PostgreSQL
+async function get(sql, params) {
+  const result = await pool.query(sql, params);
+  return result.rows[0];
+}
+
+async function run(sql, params) {
+  await pool.query(sql, params);
+}
 }
 
 // Export fungsi agar bisa dipanggil dari file lain
